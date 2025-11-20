@@ -1,4 +1,5 @@
-# generar_config_drift.py
+from __future__ import annotations
+
 import argparse
 import json
 from pathlib import Path
@@ -6,63 +7,69 @@ from pathlib import Path
 import pandas as pd
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Generar config_drift.json con configuración por defecto"
-    )
-    parser.add_argument("csv_path", type=str, help="Ruta al CSV de datos")
-    parser.add_argument(
-        "--output",
-        type=str,
-        default="config_drift.json",
-        help="Nombre del archivo de salida",
-    )
-    parser.add_argument(
-        "--overwrite",
-        action="store_true",
-        help="Sobrescribir archivo existente sin preguntar",
-    )
-    return parser.parse_args()
+def build_default_config_from_csv(csv_path: Path) -> dict:
+    df = pd.read_csv(csv_path, nrows=2000)  # sample para detectar tipos
+
+    if "date_time" not in df.columns:
+        print(
+            "⚠️ Aviso: el CSV no tiene columna 'date_time'. "
+            "Igualmente se generará el config, pero el pipeline requerirá esa columna."
+        )
+
+    numeric_cols = df.select_dtypes(include="number").columns.tolist()
+    if not numeric_cols:
+        raise ValueError("No se encontraron columnas numéricas en el CSV para armar el config.")
+
+    config = {
+        "global": {
+            # Defaults razonables; los puedes ajustar
+            "metric": "ks",
+            "strategy": "golden",
+            "window": "24H",
+            "threshold": 0.20,
+            "min_points": 5,
+        },
+        "variables": {},
+    }
+
+    for col in numeric_cols:
+        config["variables"][col] = {
+            "enabled": True,
+            # Si quisieras overridear por variable:
+            # "metric": "ks",
+            # "strategy": "golden",
+            # "window": "24H",
+            # "threshold": 0.20,
+        }
+
+    return config
 
 
 def main():
-    args = parse_args()
-    csv_path = Path(args.csv_path)
-    out_path = Path(args.output)
+    parser = argparse.ArgumentParser(
+        description="Generar archivo de configuración JSON para el pipeline de drift."
+    )
+    parser.add_argument("input_csv", help="Ruta al CSV de entrada")
+    parser.add_argument(
+        "--output",
+        default="config_drift.json",
+        help="Ruta del archivo JSON a generar (default: config_drift.json)",
+    )
 
-    if out_path.exists() and not args.overwrite:
-        raise SystemExit(
-            f"{out_path} ya existe. Usa --overwrite si quieres sobrescribir."
-        )
+    args = parser.parse_args()
 
-    df = pd.read_csv(csv_path, nrows=10)  # basta una muestra
-    cols = [c for c in df.columns if c != "date_time"]
+    csv_path = Path(args.input_csv)
+    if not csv_path.exists():
+        raise FileNotFoundError(f"No se encontró el CSV: {csv_path}")
 
-    # Config por defecto (ajústala a tus defaults reales)
-    default_cfg = {
-        "window_size": "6H",
-        "step_size": "1H",
-        "baseline_strategy": "golden",
-        "metrics": ["psi", "ks", "wasserstein", "mannwhitney"],
-        "thresholds": {
-            "psi": 0.2,
-            "ks": 0.1,
-            "wasserstein": 0.5,
-            "mannwhitney_pvalue": 0.05,
-        },
-        "min_window_size": 30,
-        "aggregate_episodes": {
-            "min_consecutive_windows": 2,
-            "max_gap_windows": 1,
-        },
-    }
+    cfg = build_default_config_from_csv(csv_path)
 
-    config = {col: default_cfg for col in cols}
+    output_path = Path(args.output)
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2, ensure_ascii=False)
 
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2, ensure_ascii=False)
-
-    print(f"✅ Configuración generada en {out_path}")
+    print(f"✅ Config JSON generado en: {output_path}")
+    print("   Revisa y ajusta los parámetros globales y por variable según lo que necesites.")
 
 
 if __name__ == "__main__":
