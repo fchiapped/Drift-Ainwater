@@ -1,4 +1,5 @@
 data/
-output/
-resultados/
+output_drift/
+config/
 __pycache__/
+*.pyc

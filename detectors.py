@@ -16,9 +16,9 @@ from funciones_drift import (
 
 @dataclass
 class DriftConfig:
-    metric: str = "ks"          # "psi", "ks" o "wasserstein"
-    strategy: str = "golden"    # "decay", "golden" o "seasonal"
-    window: str = "24h"         # tamaño de ventana (ej. "6h", "24h")
+    metric: str = "wasserstein"          # "psi", "ks" o "wasserstein"
+    strategy: str = "decay"    # "decay", "golden" o "seasonal"
+    window: str = "12h"         # tamaño de ventana (ej. "6h", "24h")
     threshold: float = 0.2      # umbral de la métrica
     min_points: int = 5         # puntos mínimos en ventana actual
     hysteresis_windows: int = 2 # ventanas "normales" para cerrar drift

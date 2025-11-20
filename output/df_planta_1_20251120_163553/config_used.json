@@ -1,0 +1,178 @@
+{
+  "input_csv": "data\\df_planta_1.csv",
+  "config_path": "config\\config_drift.json",
+  "global": {
+    "metric": "wasserstein",
+    "strategy": "decay",
+    "window": "12H",
+    "threshold": null,
+    "min_points": 5
+  },
+  "variables": {
+    "Conductividad DAF": {
+      "enabled": true,
+      "effective": {
+        "metric": "wasserstein",
+        "strategy": "decay",
+        "window": "12h",
+        "threshold": 0.2,
+        "min_points": 5,
+        "hysteresis_windows": 2
+      }
+    },
+    "Flujo Parshall 01 entrada a Ecualizador 1": {
+      "enabled": true,
+      "effective": {
+        "metric": "wasserstein",
+        "strategy": "decay",
+        "window": "12h",
+        "threshold": 0.2,
+        "min_points": 5,
+        "hysteresis_windows": 2
+      }
+    },
+    "Flujo de envío a DAF": {
+      "enabled": true,
+      "effective": {
+        "metric": "wasserstein",
+        "strategy": "decay",
+        "window": "12h",
+        "threshold": 0.2,
+        "min_points": 5,
+        "hysteresis_windows": 2
+      }
+    },
+    "Nivel Ecualizador 1 (Tk 30m3)": {
+      "enabled": true,
+      "effective": {
+        "metric": "wasserstein",
+        "strategy": "decay",
+        "window": "12h",
+        "threshold": 0.2,
+        "min_points": 5,
+        "hysteresis_windows": 2
+      }
+    },
+    "Nivel Ecualizador 2 (Tk 250m3)": {
+      "enabled": true,
+      "effective": {
+        "metric": "wasserstein",
+        "strategy": "decay",
+        "window": "12h",
+        "threshold": 0.2,
+        "min_points": 5,
+        "hysteresis_windows": 2
+      }
+    },
+    "Temperatura DAF": {
+      "enabled": true,
+      "effective": {
+        "metric": "wasserstein",
+        "strategy": "decay",
+        "window": "12h",
+        "threshold": 0.2,
+        "min_points": 5,
+        "hysteresis_windows": 2
+      }
+    },
+    "pH Clarificado DAF (Tk 80m3)": {
+      "enabled": true,
+      "effective": {
+        "metric": "wasserstein",
+        "strategy": "decay",
+        "window": "12h",
+        "threshold": 0.2,
+        "min_points": 5,
+        "hysteresis_windows": 2
+      }
+    },
+    "pH Ecualizador 2 (Tk 250m3)": {
+      "enabled": true,
+      "effective": {
+        "metric": "wasserstein",
+        "strategy": "decay",
+        "window": "12h",
+        "threshold": 0.2,
+        "min_points": 5,
+        "hysteresis_windows": 2
+      }
+    },
+    "pH coagulación entrada DAF": {
+      "enabled": true,
+      "effective": {
+        "metric": "wasserstein",
+        "strategy": "decay",
+        "window": "12h",
+        "threshold": 0.2,
+        "min_points": 5,
+        "hysteresis_windows": 2
+      }
+    },
+    "pH entrada a Ecualizador 2 (Tk 250m3)": {
+      "enabled": true,
+      "effective": {
+        "metric": "wasserstein",
+        "strategy": "decay",
+        "window": "12h",
+        "threshold": 0.2,
+        "min_points": 5,
+        "hysteresis_windows": 2
+      }
+    },
+    "pH salida a Parshall 02": {
+      "enabled": true,
+      "effective": {
+        "metric": "wasserstein",
+        "strategy": "decay",
+        "window": "12h",
+        "threshold": 0.2,
+        "min_points": 5,
+        "hysteresis_windows": 2
+      }
+    },
+    "Nivel Clarificado DAF (Tk 80m3)": {
+      "enabled": true,
+      "effective": {
+        "metric": "wasserstein",
+        "strategy": "decay",
+        "window": "12h",
+        "threshold": 0.2,
+        "min_points": 5,
+        "hysteresis_windows": 2
+      }
+    },
+    "pH entrada a Ecualizador 1": {
+      "enabled": true,
+      "effective": {
+        "metric": "wasserstein",
+        "strategy": "decay",
+        "window": "12h",
+        "threshold": 0.2,
+        "min_points": 5,
+        "hysteresis_windows": 2
+      }
+    },
+    "Turbidez salida DAF": {
+      "enabled": true,
+      "effective": {
+        "metric": "wasserstein",
+        "strategy": "decay",
+        "window": "12h",
+        "threshold": 0.2,
+        "min_points": 5,
+        "hysteresis_windows": 2
+      }
+    },
+    "pH salida y control Ecualizador 1": {
+      "enabled": true,
+      "effective": {
+        "metric": "wasserstein",
+        "strategy": "decay",
+        "window": "12h",
+        "threshold": 0.2,
+        "min_points": 5,
+        "hysteresis_windows": 2
+      }
+    }
+  }
+}

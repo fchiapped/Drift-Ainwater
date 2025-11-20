@@ -26,9 +26,9 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="output_drift",
+        default="output",
         help="Directorio de salida (se creará si no existe). "
-             "Por defecto: output_drift",
+             "Por defecto: output",
     )
 
     parser.add_argument(

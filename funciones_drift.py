@@ -5,7 +5,6 @@ from scipy.stats import ks_2samp, wasserstein_distance
 
 # ============================
 #   MÉTRICAS NUMÉRICAS
-# ============================
 
 def psi_numeric(ref, cur, bins=10):
     """Population Stability Index."""
@@ -45,7 +44,6 @@ def wasserstein_numeric(ref, cur):
 
 # ============================
 #   SCORE GENÉRICO
-# ============================
 
 def _score_numeric_series(ref, cur, metric: str):
     """Wrapper genérico para unificar PSI, KS, Wasserstein."""
@@ -60,7 +58,6 @@ def _score_numeric_series(ref, cur, metric: str):
 
 # ============================
 #   REFERENCIAS POR ESTRATEGIA
-# ============================
 
 def ref_decay_prefix_mass(df_hist, now=None, alpha=0.95):
     """Referencia tipo 'decay': EMA por variable."""

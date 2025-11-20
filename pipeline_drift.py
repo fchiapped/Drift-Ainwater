@@ -21,7 +21,7 @@ class DriftPipeline:
     def __init__(
         self,
         input_csv: str | Path,
-        output_dir: str | Path = "output_drift",
+        output_dir: str | Path = "output",
         config_path: str | Path = "config/config_drift.json",
         columns: Optional[Iterable[str]] = None,
     ) -> None:
@@ -66,24 +66,28 @@ class DriftPipeline:
         self._df = df
         return df
 
-    def _load_config(self) -> Dict:
-        if not self.config_path.exists():
+    def _load_config(self) -> dict:
+        cfg_path = self.config_path or (Path("config") / "config_drift.json")
+
+        if not cfg_path.exists():
             raise FileNotFoundError(
-                f"No se encontró archivo de configuración: {self.config_path}\n"
+                f"No se encontró archivo de configuración: {cfg_path}\n"
                 "Puedes generarlo con:\n"
-                f"  python generar_config_drift.py {self.input_csv} --output {self.config_path}"
+                f"  python generar_config_drift.py --output {cfg_path}\n"
+                "O bien puedes indicar otro archivo con el flag --config."
             )
-        with self.config_path.open("r", encoding="utf-8") as f:
-            cfg = json.load(f)
+
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            return json.load(f)
 
         cfg.setdefault("global", {})
         cfg.setdefault("variables", {})
 
         # Defaults globales
         g = cfg["global"]
-        g.setdefault("metric", "ks")
-        g.setdefault("strategy", "golden")
-        g.setdefault("window", "24h")
+        g.setdefault("metric", "wasserstein")
+        g.setdefault("strategy", "decay")
+        g.setdefault("window", "12h")
         g.setdefault("threshold", 0.2)
         g.setdefault("min_points", 5)
 
@@ -109,9 +113,9 @@ class DriftPipeline:
         local = {**g, **{k: v for k, v in var_cfg.items() if k != "enabled"}}
 
         return DriftConfig(
-            metric=str(local.get("metric", "ks")),
-            strategy=str(local.get("strategy", "golden")),
-            window=str(local.get("window", "24h")),
+            metric=str(local.get("metric", "wasserstein")),
+            strategy=str(local.get("strategy", "decay")),
+            window=str(local.get("window", "12h")),
             threshold=float(local.get("threshold", 0.2)),
             min_points=int(local.get("min_points", 5)),
             hysteresis_windows=int(local.get("hysteresis_windows", 2)),

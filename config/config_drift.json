@@ -1,41 +1,9 @@
 {
   "global": {
-    "metric": "ks",
-    "strategy": "golden",
-    "window": "24H",
-    "threshold": 0.2,
+    "metric": "wasserstein",
+    "strategy": "decay",
+    "window": "12H",
+    "threshold": null,
     "min_points": 5
-  },
-  "variables": {
-    "var_1": {
-      "enabled": true
-    },
-    "var_2": {
-      "enabled": true
-    },
-    "var_3": {
-      "enabled": true
-    },
-    "var_4": {
-      "enabled": true
-    },
-    "var_5": {
-      "enabled": true
-    },
-    "var_6": {
-      "enabled": true
-    },
-    "var_7": {
-      "enabled": true
-    },
-    "var_8": {
-      "enabled": true
-    },
-    "var_9": {
-      "enabled": true
-    },
-    "var_10": {
-      "enabled": true
-    }
   }
 }
