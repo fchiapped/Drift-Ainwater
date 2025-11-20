@@ -1,9 +1,0 @@
-{
-  "global": {
-    "metric": "wasserstein",
-    "strategy": "decay",
-    "window": "12H",
-    "threshold": null,
-    "min_points": 5
-  }
-}
