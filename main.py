@@ -1,51 +1,53 @@
 import argparse
+from pathlib import Path
+
 from pipeline_drift import DriftPipeline
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Pipeline de detección de drift en series de tiempo"
     )
-    parser.add_argument("input_csv", help="Ruta al CSV de entrada")
+    # CSV SIEMPRE obligatorio (no hay default)
+    parser.add_argument(
+        "input_csv",
+        type=str,
+        help="Ruta al CSV de entrada (debe contener una columna 'date_time')",
+    )
+
     parser.add_argument(
         "--config",
-        required=True,
-        help="Archivo de configuración JSON para el detector de drift",
+        type=str,
+        default="config/config_drift.json",
+        help="Archivo de configuración JSON para el detector de drift "
+             "(por defecto: config/config_drift.json)",
     )
+
     parser.add_argument(
         "--output-dir",
+        type=str,
         default="output_drift",
-        help="Directorio de salida (se creará si no existe)",
+        help="Directorio de salida (se creará si no existe). "
+             "Por defecto: output_drift",
     )
+
     parser.add_argument(
         "--columns",
         nargs="+",
         default=None,
         help=(
-            "Columnas específicas a procesar. "
-            "Si no se especifica y no se usa --all, se procesan todas las columnas "
-            "numéricas presentes en el config."
+            "Columnas numéricas específicas a procesar. "
+            "Si no se especifica, se usan las columnas habilitadas en el JSON."
         ),
-    )
-    parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Procesar todas las columnas numéricas definidas en el config",
     )
 
     args = parser.parse_args()
-
-    # Determinar columnas a procesar
-    if args.all or args.columns is None:
-        columns_to_process = None  # None → todas las columnas definidas en config
-    else:
-        columns_to_process = args.columns
 
     pipeline = DriftPipeline(
         input_csv=args.input_csv,
         output_dir=args.output_dir,
         config_path=args.config,
-        columns_to_process=columns_to_process,
+        columns=args.columns,
     )
     pipeline.run()
 

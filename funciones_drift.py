@@ -69,10 +69,10 @@ def ref_decay_prefix_mass(df_hist, now=None, alpha=0.95):
 
 def ref_golden(df_hist):
     """Referencia tipo 'golden': media + varianza robusta."""
-    return df_hist.rolling("48H").mean()
+    return df_hist.rolling("48h").mean()
 
 
 def ref_seasonal(df_hist, current_end=None):
     """Referencia estacional: último periodo."""
-    window = "24H"
+    window = "24h"
     return df_hist.last(window)

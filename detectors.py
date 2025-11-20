@@ -1,122 +1,135 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional
 
 import numpy as np
 import pandas as pd
 
-from funciones_drift import run_drift_all_multi_metric
+from funciones_drift import (
+    ref_decay_prefix_mass,
+    ref_golden,
+    ref_seasonal,
+    _score_numeric_series,
+)
 
 
 @dataclass
-class DriftDetectorConfig:
-    metric: str = "ks"              # "psi", "ks" o "wasserstein"
-    strategy: str = "golden"        # "decay", "golden", "seasonal"
-    window: str = "24H"             # tamaño de ventana, ej. "12H", "24H"
-    threshold: Optional[float] = None  # umbral; si None, usa defaults de backend
-    min_points: int = 5             # mínimo de puntos por ventana
+class DriftConfig:
+    metric: str = "ks"          # "psi", "ks" o "wasserstein"
+    strategy: str = "golden"    # "decay", "golden" o "seasonal"
+    window: str = "24h"         # tamaño de ventana (ej. "6h", "24h")
+    threshold: float = 0.2      # umbral de la métrica
+    min_points: int = 5         # puntos mínimos en ventana actual
+    hysteresis_windows: int = 2 # ventanas "normales" para cerrar drift
 
 
-class DriftDetector:
-    """
-    Envoltura simple sobre run_drift_all_multi_metric para una sola variable.
+def _build_reference(
+    df_hist: pd.DataFrame,
+    now: pd.Timestamp,
+    strategy: str,
+) -> pd.DataFrame:
 
-    Dado un DataFrame indexado por date_time y una columna numérica,
-    calcula:
+    if df_hist.empty:
+        return df_hist
 
-    - drift_label (bool) por timestamp.
-    - score_{metric} por timestamp (estadístico de la ventana que lo contiene).
-    """
+    if strategy == "decay":
+        ref = ref_decay_prefix_mass(df_hist, now=now)
+    elif strategy == "golden":
+        ref = ref_golden(df_hist)
+    elif strategy == "seasonal":
+        ref = ref_seasonal(df_hist, current_end=now)
+    else:
+        raise ValueError(f"Estrategia desconocida: {strategy!r}")
 
-    def __init__(self, config: DriftDetectorConfig) -> None:
-        self.config = config
+    if ref is None or ref.empty:
+        ref = df_hist
+    return ref
 
-    def _run_windows(self, df_var: pd.DataFrame, variable: str) -> pd.DataFrame:
-        """
-        Ejecuta run_drift_all_multi_metric para una sola variable y un solo set
-        (window, strategy, metric).
-        """
-        metric = self.config.metric
-        thr_dict: Optional[Dict[str, float]] = None
-        if self.config.threshold is not None:
-            thr_dict = {metric: self.config.threshold}
 
-        df_windows = run_drift_all_multi_metric(
-            df=df_var,
-            windows=(self.config.window,),
-            strategies=(self.config.strategy,),
-            metrics=(metric,),
-            thresholds=thr_dict,
-            min_points=self.config.min_points,
-        )
+def _effective_threshold(cfg: DriftConfig, ref_series: pd.Series) -> float:
 
-        # Filtrar solo la variable/métrica de interés
-        df_win_sub = df_windows[
-            (df_windows["variable"] == variable)
-            & (df_windows["metric"] == metric)
-        ].copy()
+    thr = cfg.threshold
+    if cfg.metric.lower() == "wasserstein":
+        # Si viene como None o NaN → usar 0.5 * std(ref) como fallback
+        if thr is None or (isinstance(thr, float) and np.isnan(thr)):
+            std_ref = pd.to_numeric(ref_series, errors="coerce").dropna().std()
+            if pd.isna(std_ref):
+                return 0.5
+            return float(0.5 * std_ref)
+    return float(thr)
 
-        return df_win_sub
 
-    def detect_for_variable(self, df_var: pd.DataFrame, variable: str) -> pd.DataFrame:
-        """
-        df_var: DataFrame con índice datetime y UNA columna = variable.
-        Retorna DataFrame con:
+def detect_drift_univariate(
+    df: pd.DataFrame,
+    cfg: DriftConfig,
+) -> pd.Series:
+    
+    if df.empty:
+        raise ValueError("El DataFrame de entrada está vacío.")
 
-        - date_time
-        - value
-        - drift_label (bool)
-        - score_{metric} (float)
-        """
-        if variable not in df_var.columns:
-            raise ValueError(f"La columna '{variable}' no está en df_var.columns")
+    if df.index.dtype != "datetime64[ns]":
+        raise ValueError("El índice del DataFrame debe ser datetime (ya indexado en 'date_time').")
 
-        if not isinstance(df_var.index, pd.DatetimeIndex):
-            raise TypeError("df_var debe estar indexado por un DatetimeIndex")
+    if len(df.columns) != 1:
+        raise ValueError("detect_drift_univariate espera exactamente UNA columna numérica.")
 
-        idx = df_var.index
-        metric = self.config.metric
+    col = df.columns[0]
+    s = df[col]
 
-        df_win = self._run_windows(df_var=df_var, variable=variable)
+    drift_flags = pd.Series(False, index=df.index)
 
-        # Series de salida
-        drift_flag = pd.Series(False, index=idx)
-        score = pd.Series(np.nan, index=idx, dtype="float64")
+    w = pd.to_timedelta(cfg.window)
+    t_min, t_max = df.index.min(), df.index.max()
+    if pd.isna(t_min) or pd.isna(t_max):
+        return drift_flags
 
-        # Marcar drift por timestamp, usando las ventanas detectadas
-        for _, row in df_win.iterrows():
-            if not bool(row.get("drift_flag", False)):
-                continue
+    t_ends = pd.date_range(t_min + w, t_max, freq=cfg.window)
 
-            t0 = row["t0"]
-            t1 = row["t1"]
-            stat_val = row.get("stat_value", np.nan)
+    in_drift = False
+    normal_count = 0
 
-            mask = (idx >= t0) & (idx <= t1)
-            if not mask.any():
-                continue
+    for t_end in t_ends:
+        t0 = t_end - w
 
-            # Actualizar drift_flag
-            drift_flag.loc[mask] = True
+        df_hist = df.loc[: t0 - pd.Timedelta(microseconds=1)]
+        df_cur = df.loc[t0:t_end]
 
-            # Actualizar score: nos quedamos con el máximo por timestamp
-            current_vals = score.loc[mask].to_numpy()
-            new_vals = np.where(
-                np.isnan(current_vals),
-                stat_val,
-                np.maximum(current_vals, stat_val),
-            )
-            score.loc[mask] = new_vals
+        if df_hist.empty or df_cur.empty:
+            continue
 
-        out = pd.DataFrame(
-            {
-                "date_time": idx,
-                "value": df_var[variable].to_numpy(),
-                "drift_label": drift_flag.to_numpy(),
-                f"score_{metric}": score.to_numpy(),
-            }
-        )
+        cur_series = df_cur[col].dropna()
+        if cur_series.size < cfg.min_points:
+            continue
 
-        return out
+        ref_df = _build_reference(df_hist, now=t_end, strategy=cfg.strategy)
+        if col not in ref_df.columns:
+            ref_series = df_hist[col].dropna()
+        else:
+            ref_series = ref_df[col].dropna()
+
+        if ref_series.empty:
+            continue
+
+        # Valor de la métrica
+        stat = _score_numeric_series(ref_series, cur_series, cfg.metric)
+        if stat is None or np.isnan(stat):
+            drift_now = False
+        else:
+            thr = _effective_threshold(cfg, ref_series)
+            drift_now = bool(stat >= thr)
+
+        if drift_now:
+            in_drift = True
+            normal_count = 0
+        else:
+            if in_drift:
+                normal_count += 1
+                if normal_count >= cfg.hysteresis_windows:
+                    in_drift = False
+                    normal_count = 0
+
+        if in_drift:
+            drift_flags.loc[t0:t_end] = True
+
+    return drift_flags
