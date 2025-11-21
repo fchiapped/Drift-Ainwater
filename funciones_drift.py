@@ -48,7 +48,7 @@ def psi_numeric(ref, cur, n_bins: int = 10) -> float | None:
 
     return float(np.sum((p_c - p_r) * np.log(p_c / p_r)))
 
-def score_numeric_series(a: pd.Series, b: pd.Series, metric: str) -> float | None:
+def score_numeric_series(a: pd.Series, b: pd.Series, method: str) -> float | None:
     """
     Wrapper genérico para métricas numéricas de drift.
 
@@ -59,13 +59,13 @@ def score_numeric_series(a: pd.Series, b: pd.Series, metric: str) -> float | Non
 
     Si la métrica no se reconoce, se usa PSI como fallback.
     """
-    metric = str(metric).lower()
+    method = str(method).lower()
 
-    if metric == "psi":
+    if method == "psi":
         return psi_numeric(a, b, n_bins=10)
-    if metric == "ks":
+    if method == "ks":
         return ks_numeric(a, b)
-    if metric == "wasserstein":
+    if method == "wasserstein":
         return wasserstein_numeric(a, b)
 
     # fallback: PSI

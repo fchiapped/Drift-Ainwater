@@ -15,24 +15,24 @@ class DriftThresholdConfig:
     fallback_std: float = 0.5
 
 def effective_threshold(
-    metric: str,
+    method: str,
     ref_series: pd.Series,
     cfg: DriftThresholdConfig,
     thr_override: float | None,
 ) -> float:
 
-    metric = str(metric).lower()
+    method = str(method).lower()
 
     if thr_override is not None:
         return float(thr_override)
 
-    if metric == "psi":
+    if method == "psi":
         return float(cfg.psi)
 
-    if metric == "ks":
+    if method == "ks":
         return float(cfg.ks)
 
-    if metric == "wasserstein":
+    if method == "wasserstein":
         ref_std = pd.to_numeric(ref_series, errors="coerce").dropna().std()
         if pd.isna(ref_std) or ref_std <= 0:
             return float(cfg.fallback_std)

@@ -5,7 +5,7 @@ from pathlib import Path
 
 DEFAULT_CONFIG = {
     "global": {
-        "metric": "wasserstein",     # "psi", "ks" o "wasserstein"
+        "method": "wasserstein",     # "psi", "ks" o "wasserstein"
         "strategy": "decay",         # "decay", "golden", "seasonal"
         "window": "12h",             # tamaño de ventana
         "threshold": None,           # umbral explícito (None → usar defaults por métrica)
@@ -30,7 +30,7 @@ def main() -> None:
     )
 
     parser.add_argument(
-        "--metric",
+        "--method",
         type=str,
         choices=["psi", "ks", "wasserstein"],
         help="Métrica global a usar (psi, ks o wasserstein). "
@@ -75,8 +75,8 @@ def main() -> None:
     config = DEFAULT_CONFIG.copy()
     global_cfg = config["global"].copy()
 
-    if args.metric is not None:
-        global_cfg["metric"] = args.metric
+    if args.method is not None:
+        global_cfg["method"] = args.method
     if args.strategy is not None:
         global_cfg["strategy"] = args.strategy
     if args.window is not None:

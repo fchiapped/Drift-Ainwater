@@ -11,8 +11,9 @@ Este pipeline permite:
 
 - Procesar series de tiempo con una columna obligatoria `date_time`.
 - Evaluar drift **univariado** para múltiples variables numéricas.
-- Definir **métrica**, **estrategia de referencia**, **tamaño de ventana** y **umbrales** desde un archivo de configuración global.
+- Definir **estrategia de referencia**, **métodos estadísticos**,  **tamaño de ventana** y **umbrales** desde un archivo de configuración global.
 - Generar un **CSV final por variable** con un flag booleano `has_drift` para cada timestamp.
+- Generar un **CSV de ventanas** con detalles de cada evaluación (valor estadístico, umbral, estado, episodio).
 - Registrar la **configuración exacta usada en cada corrida** (`config_used.json`) para trazabilidad y reproducibilidad.
 - Mantener una estructura muy similar al pipeline de outliers, facilitando su adopción por parte del equipo de Ainwater.
 
@@ -31,7 +32,7 @@ Drift-Ainwater/
 │
 ├── main.py                   ← punto de entrada (CLI)
 ├── pipeline_drift.py         ← lógica principal del pipeline
-├── funciones_drift.py        ← métricas estadísticas + estrategias de referencia
+├── funciones_drift.py        ← estrategias de referencia + métodos estadísticos
 ├── drift_thresholds.py       ← lógica centralizada de umbrales
 ├── generar_config_drift.py   ← script para generar/actualizar config global
 │
@@ -50,8 +51,10 @@ Drift-Ainwater/
 - Paquetes de Python:
   - `numpy`
   - `pandas`
-  - `scipy` (opcional pero recomendado, necesario para KS y Wasserstein)
+  - `scipy` (necesario para métodos estadísticos KS y Wasserstein)
 
+Si falta scipy, los métodos KS y Wasserstein se deshabilitan automáticamente, y el pipeline imprime una advertencia al inicio.
+main.py realiza un chequeo automático del entorno y te imprime un pip install sugerido
 ### 3.2. Instalación rápida con `pip`
 
 Desde un entorno virtual (recomendado):
@@ -60,7 +63,7 @@ Desde un entorno virtual (recomendado):
 pip install numpy pandas scipy
 ```
 
-Si no quieres usar KS ni Wasserstein puedes omitir `scipy`, pero el pipeline mostrará una advertencia y esas métricas devolverán `None`.
+Si no quieres usar KS ni Wasserstein puedes omitir `scipy`, pero el pipeline mostrará una advertencia y esos métodos devolverán `None`.
 
 ### 3.3. Chequeo automático del entorno
 
@@ -97,24 +100,26 @@ Este archivo:
 ```json
 {
   "global": {
-    "metric": "wasserstein",
+    "method": "wasserstein",
     "strategy": "decay",
     "window": "12h",
     "threshold": null,
     "min_points": 60,
-    "hysteresis_windows": 1
   }
 }
 ```
 
 Donde:
 
-- `metric`: métrica estadística de drift (`"psi"`, `"ks"`, `"wasserstein"`).
+- `method`: método estadístico de drift (`"psi"`, `"ks"`, `"wasserstein"`).
 - `strategy`: estrategia de referencia (`"decay"`, `"golden"`, `"seasonal"`).
 - `window`: tamaño de ventana deslizante (ej: `"12h"`, `"24h"`, `"6h"`).
 - `threshold`: umbral explícito. Si es `null`, se usan los **defaults dinámicos** de `drift_thresholds.py` (por ejemplo, `c · std(ref)` para Wasserstein).
-- `min_points`: mínimo de puntos por ventana para evaluar drift (por ejemplo, `60` si tienes datos minutales y quieres ~1h por ventana).
-- `hysteresis_windows`: número de ventanas consecutivas sin drift para cerrar un episodio (por defecto `1` → un solo “no drift” ya termina el episodio).
+- `min_points`: Número mínimo de observaciones dentro de cada ventana para calcular el método estadístico. Si una ventana tiene menos puntos, no se evalúa drift y se marca como `NORMAL`.
+
+**Nota:** una ventana puede quedar con menos de `min_points` si existen valores faltantes, 
+muestreo irregular o saltos en la serie temporal.  
+En esos casos la ventana se omite y se marca automáticamente como `NORMAL` sin evaluar drift.
 
 ### 4.2. Overrides por variable (opcional)
 
@@ -123,17 +128,16 @@ Aunque el config no requiere una sección de variables, el pipeline soporta over
 ```json
 {
   "global": {
-    "metric": "wasserstein",
+    "method": "wasserstein",
     "strategy": "decay",
     "window": "12h",
     "threshold": null,
     "min_points": 60,
-    "hysteresis_windows": 1
   },
   "variables": {
     "var_1": {
       "window": "24h",
-      "metric": "ks"
+      "method": "ks"
     },
     "var_2": {
       "threshold": 0.3
@@ -243,21 +247,19 @@ Ejemplo simplificado:
   "run_dir": "output/synthetic_plant_20251120_192536",
   "generated_at": "2025-11-20T19:25:36.123456",
   "global": {
-    "metric": "wasserstein",
+    "method": "wasserstein",
     "strategy": "decay",
     "window": "12h",
     "threshold": null,
     "min_points": 60,
-    "hysteresis_windows": 1
   },
   "variables": {
     "var_1": {
-      "metric": "wasserstein",
+      "method": "wasserstein",
       "strategy": "decay",
       "window": "12h",
       "threshold": null,
       "min_points": 60,
-      "hysteresis_windows": 1
     },
     "...": {}
   }
@@ -270,20 +272,44 @@ Esto permite saber exactamente con qué parámetros se ejecutó cada corrida.
 
 ## 🔍 7. Lógica Interna (Resumen)
 
+### 🧭 Vista general del flujo
+
+    ┌─────────────────────────────────────┐
+    │  CSV con date_time + variables num. │
+    └─────────────────────────────────────┘
+                     │
+                     ▼
+     Ventanas deslizantes según "window"
+                     │
+                     ▼
+     Estrategia de referencia (decay/golden/seasonal)
+                     │
+                     ▼
+  Método estadístico (psi / ks / wasserstein)
+                     │
+                     ▼
+        Umbral dinámico o explícito
+                     │
+                     ▼
+ Ventanas en DRIFT o NORMAL con episodio_id
+                     │
+                     ▼
+     Flags por timestamp (archivo var_X.csv)
+
 ### 7.1. `funciones_drift.py`
 
 Contiene:
-
-- **Métricas de drift**:
-  - `psi_numeric(ref, cur)`
-  - `ks_numeric(ref, cur)`
-  - `wasserstein_numeric(ref, cur)`
-  - `score_numeric_series(a, b, metric)` – wrapper que elige la métrica correcta.
 
 - **Estrategias de referencia**:
   - `ref_decay_prefix_mass(df_hist, now)` – pondera exponencialmente el pasado y se queda con el prefijo que concentra cierta masa de peso.
   - `ref_golden(df_hist, win, step, k)` – busca las `k` ventanas históricas más estables según una métrica robusta.
   - `ref_seasonal(df_hist, current_end, weeks_back)` – usa historial del mismo “slot horario” (día de semana + hora) para capturar estacionalidad.
+
+- **Métodos Estadísticos**:
+  - `psi_numeric(ref, cur)`
+  - `ks_numeric(ref, cur)`
+  - `wasserstein_numeric(ref, cur)`
+  - `score_numeric_series(a, b, method)` – wrapper que elige el método estadístico correcto.
 
 ### 7.2. `drift_thresholds.py`
 
@@ -294,7 +320,7 @@ Centraliza la lógica de umbrales:
   - `ks`
   - `wasserstein_factor` (multiplicador de `std(ref)`)
   - fallbacks para casos degenerados.
-- `effective_threshold(metric, ref_series, cfg, thr_override)` decide:
+- `effective_threshold(method, ref_series, cfg, thr_override)` decide:
   - usar umbral explícito (si se definió en config), o
   - calcular uno dinámico en función de la métrica y la referencia.
 
@@ -337,7 +363,7 @@ Para evaluar la calidad del detector de drift se recomienda (fuera de este repo)
   - Tasa de falsas alarmas por día.
 - Ajustar:
   - `window` (ventanas más largas para drift gradual, más cortas para cambios abruptos).
-  - `metric` (Wasserstein vs KS vs PSI).
+  - `method` (Wasserstein vs KS vs PSI).
   - `threshold` (más alto → menos falsas alarmas, más bajo → más sensibilidad).
 
 Este repo se centra en la **detección y serialización de flags**, dejando la evaluación cuantitativa para notebooks externos del proyecto de grado.
@@ -348,7 +374,7 @@ Este repo se centra en la **detección y serialización de flags**, dejando la e
 
 La arquitectura actual permite:
 
-- Agregar nuevas métricas de drift (por ejemplo, Jensen–Shannon, Earth Mover con normalización, etc.).
+- Agregar nuevos métodos estadísticos de drift (por ejemplo, Jensen–Shannon, Earth Mover con normalización, etc.).
 - Incorporar nuevas estrategias de referencia (por ejemplo, ventanas móviles robustas, referencias por clúster, etc.).
 - Extender a escenarios multivariados (combinando varias variables en un solo detector).
 - Integrarse con orquestadores (Airflow, Prefect, etc.) envolviendo `main.py` o `DriftPipeline` en tareas programadas.

@@ -21,7 +21,7 @@ THRESHOLD_CFG = DriftThresholdConfig()
 
 @dataclass
 class DriftConfig:
-    metric: str = "wasserstein"          # "psi", "ks" o "wasserstein"
+    method: str = "wasserstein"          # "psi", "ks" o "wasserstein"
     strategy: str = "decay"              # "decay", "golden", "seasonal"
     window: str = "12h"                  # tamaño de ventana
     threshold: Optional[float] = None    # umbral; si None se usan defaults
@@ -107,10 +107,10 @@ def run_drift_univariate(series: pd.Series, cfg: DriftConfig) -> pd.DataFrame:
             )
             continue
 
-        stat_val = score_numeric_series(ref_series, cur_series, cfg.metric)
+        stat_val = score_numeric_series(ref_series, cur_series, cfg.method)
 
         thr = effective_threshold(
-            metric=cfg.metric,
+            method=cfg.method,
             ref_series=ref_series,
             cfg=THRESHOLD_CFG,
             thr_override=cfg.threshold,
@@ -182,7 +182,7 @@ class DriftPipeline:
         if self.config_path is None:
             return {
                 "global": {
-                    "metric": "wasserstein",
+                    "method": "wasserstein",
                     "strategy": "decay",
                     "window": "12h",
                     "threshold": None,
@@ -211,7 +211,7 @@ class DriftPipeline:
         )
 
         merged: Dict[str, Any] = {
-            "metric": global_cfg.get("metric", "wasserstein"),
+            "method": global_cfg.get("method", "wasserstein"),
             "strategy": global_cfg.get("strategy", "decay"),
             "window": str(global_cfg.get("window", "12h")).lower(),
             "threshold": global_cfg.get("threshold", None),
