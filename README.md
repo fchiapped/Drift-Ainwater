@@ -274,27 +274,32 @@ Esto permite saber exactamente con qué parámetros se ejecutó cada corrida.
 
 ### 🧭 Vista general del flujo
 
-    ┌─────────────────────────────────────┐
-    │  CSV con date_time + variables num. │
-    └─────────────────────────────────────┘
+┌────────────────────────────────────────────┐
+│   CSV con date_time + variables numéricas  │
+└────────────────────────────────────────────┘
                      │
                      ▼
-     Ventanas deslizantes según "window"
+        Ventanas deslizantes según "window"
                      │
                      ▼
-     Estrategia de referencia (decay/golden/seasonal)
+      Estrategia de referencia elegida:
+          - decay
+          - golden
+          - seasonal
                      │
                      ▼
-  Método estadístico (psi / ks / wasserstein)
+    Método estadístico (psi / ks / wasserstein)
                      │
                      ▼
-        Umbral dinámico o explícito
+     Umbral dinámico o explícito (threshold)
                      │
                      ▼
- Ventanas en DRIFT o NORMAL con episodio_id
+   Clasificación de ventanas: NORMAL o DRIFT
+         con identificación de episodio_id
                      │
                      ▼
-     Flags por timestamp (archivo var_X.csv)
+  Expansión a flags por timestamp → var_X.csv
+
 
 ### 7.1. `funciones_drift.py`
 
