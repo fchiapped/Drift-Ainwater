@@ -273,7 +273,7 @@ Esto permite saber exactamente con qué parámetros se ejecutó cada corrida.
 ## 🔍 7. Lógica Interna (Resumen)
 
 ### 🧭 Vista general del flujo
-
+```text
 ┌────────────────────────────────────────────┐
 │   CSV con date_time + variables numéricas  │
 └────────────────────────────────────────────┘
@@ -299,7 +299,7 @@ Esto permite saber exactamente con qué parámetros se ejecutó cada corrida.
                      │
                      ▼
   Expansión a flags por timestamp → var_X.csv
-
+```
 
 ### 7.1. `funciones_drift.py`
 
