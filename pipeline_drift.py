@@ -77,7 +77,6 @@ def run_drift_univariate(series: pd.Series, cfg: DriftConfig) -> pd.DataFrame:
             )
             continue
 
-        # Referencia según estrategia, usando SOLO historial hasta t0
         if cfg.strategy == "decay":
             ref_global = ref_decay_prefix_mass(df_hist, now=t_end)
         elif cfg.strategy == "golden":
@@ -116,19 +115,16 @@ def run_drift_univariate(series: pd.Series, cfg: DriftConfig) -> pd.DataFrame:
             thr_override=cfg.threshold,
         )
 
-        # --- Nueva lógica de estado sin histéresis ---
         if stat_val is None or np.isnan(stat_val):
             drift_flag = False
         else:
             drift_flag = bool(stat_val >= thr)
 
         if drift_flag:
-            # si recién entramos en drift, abrimos nuevo episodio
             if state == "NORMAL":
                 current_episode += 1
             state = "DRIFT"
         else:
-            # en cuanto no hay drift, cerramos episodio
             state = "NORMAL"
 
         rows.append(
@@ -176,7 +172,6 @@ class DriftPipeline:
 
         self._config: Optional[Dict[str, Any]] = None
 
-    # Config Helpers
 
     def _load_config(self) -> Dict[str, Any]:
         if self.config_path is None:

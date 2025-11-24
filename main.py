@@ -62,7 +62,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Pipeline de detección de drift en series de tiempo"
     )
-    # CSV SIEMPRE obligatorio (no hay default)
     parser.add_argument(
         "input_csv",
         type=str,
@@ -101,10 +100,8 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # 1) Chequeo de entorno
     check_environment()
 
-    # 2) Ejecutar pipeline
     pipeline = DriftPipeline(
         input_csv=args.input_csv,
         output_root=args.output_dir,
