@@ -34,14 +34,25 @@ DEFAULT_CONFIG = {
 
     # Defaults para cualquier variable cuya estrategia sea "seasonal"
     "seasonal_defaults": {
-        "cycle_hours": 24.0,       # ciclo típico diario
-        "cycles_back": 20,         # cuántos ciclos hacia atrás para referencia
-        "band_frac": 0.15          # ancho relativo de la banda de fase
+        "cycle_hours": 24.0,        # ciclo típico diario
+        "cycles_back": 10,          # cuántos ciclos hacia atrás para referencia
+        "band_frac": 0.15           # ancho relativo de la banda de fase (reservado)
+    },
+
+    # Defaults globales para la máscara de mesetas extremas (plateau)
+    # Defaults globales para la máscara de mesetas extremas (plateau)
+    "plateau_defaults": {
+        "abs_eps": 0.5, # Tolerancia mínima absoluta alrededor del extremo
+        "rel_eps": 0.01, # Tolerancia relativa (fracción del rango)
+        "min_share": 0.05, # Fracción mínima de puntos en el extremo para activar la lógica
+        "low_quantile": 0.02, # Cuantil usado para cortar la “cola baja” cuando hay meseta en el mínimo
+        "high_quantile": 0.98, # Cuantil usado para cortar la “cola alta” cuando hay meseta en el máximo
     },
 
     # Espacio para overrides manuales por variable (normalmente vacío)
     "variables": {}
 }
+
 
 
 # ============================================================
@@ -111,7 +122,34 @@ def main() -> None:
     parser.add_argument(
         "--band-frac",
         type=float,
-        help="Ancho relativo de banda de fase alrededor del ciclo (default: 0.15).",
+        help="Ancho relativo de banda de fase alrededor del ciclo (default: 0.10).",
+    )
+
+    # ----- Defaults plateau (opcionales) -----
+    parser.add_argument(
+        "--plateau-abs-eps",
+        type=float,
+        help="Tolerancia mínima absoluta alrededor del extremo para mesetas.",
+    )
+    parser.add_argument(
+        "--plateau-rel-eps",
+        type=float,
+        help="Tolerancia relativa (fracción del rango) para mesetas.",
+    )
+    parser.add_argument(
+        "--plateau-min-share",
+        type=float,
+        help="Fracción mínima de puntos en el extremo para activar la lógica plateau.",
+    )
+    parser.add_argument(
+        "--plateau-low-quantile",
+        type=float,
+        help="Cuantil para cortar cola baja en meseta mínima.",
+    )
+    parser.add_argument(
+        "--plateau-high-quantile",
+        type=float,
+        help="Cuantil para cortar cola alta en meseta máxima.",
     )
 
     args = parser.parse_args()
@@ -120,6 +158,7 @@ def main() -> None:
     config = {
         "global": DEFAULT_CONFIG["global"].copy(),
         "seasonal_defaults": DEFAULT_CONFIG["seasonal_defaults"].copy(),
+        "plateau_defaults": DEFAULT_CONFIG["plateau_defaults"].copy(),
         "variables": {}
     }
 
@@ -154,6 +193,24 @@ def main() -> None:
     if args.band_frac is not None:
         seasonal_cfg["band_frac"] = float(args.band_frac)
 
+
+    # -------------------------
+    # plateau_defaults
+    # -------------------------
+    plateau_cfg = config["plateau_defaults"]
+
+    if args.plateau_abs_eps is not None:
+        plateau_cfg["abs_eps"] = float(args.plateau_abs_eps)
+    if args.plateau_rel_eps is not None:
+        plateau_cfg["rel_eps"] = float(args.plateau_rel_eps)
+    if args.plateau_min_share is not None:
+        plateau_cfg["min_share"] = float(args.plateau_min_share)
+    if args.plateau_low_quantile is not None:
+        plateau_cfg["low_quantile"] = float(args.plateau_low_quantile)
+    if args.plateau_high_quantile is not None:
+        plateau_cfg["high_quantile"] = float(args.plateau_high_quantile)
+
+
     # -------------------------
     # Guardar archivo
     # -------------------------
@@ -168,6 +225,8 @@ def main() -> None:
     print(json.dumps(config["global"], indent=2, ensure_ascii=False))
     print("📄 seasonal_defaults:")
     print(json.dumps(config["seasonal_defaults"], indent=2, ensure_ascii=False))
+    print("📄 plateau_defaults:")
+    print(json.dumps(config["plateau_defaults"], indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":

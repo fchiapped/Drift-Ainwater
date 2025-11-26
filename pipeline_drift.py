@@ -66,6 +66,10 @@ def build_reference(
 ) -> pd.DataFrame:
     """
     Construye la referencia según la estrategia especificada.
+
+    NOTA:
+    - Para "seasonal" se asume que cfg ya contiene cycle_hours y cycles_back,
+      típicamente provenientes de seasonal_defaults en el archivo JSON.
     """
     strategy = str(strategy).lower().strip()
 
@@ -79,11 +83,19 @@ def build_reference(
         ref = ref_golden(df_hist)
 
     elif strategy == "seasonal":
+        if cfg is None:
+            raise ValueError(
+                "build_reference(strategy='seasonal') requiere un cfg con "
+                "'cycle_hours' y 'cycles_back'."
+            )
+        cycle_hours = float(cfg["cycle_hours"])
+        cycles_back = int(cfg["cycles_back"])
+
         ref = ref_seasonal_cycles(
             df_hist,
             current_end=current_end,
-            cycle_hours=float(cfg.get("cycle_hours", 24.0)),
-            cycles_back=int(cfg.get("cycles_back", 7)),
+            cycle_hours=cycle_hours,
+            cycles_back=cycles_back,
         )
 
     else:
@@ -94,6 +106,7 @@ def build_reference(
         return df_hist
 
     return ref
+
 
 def evaluate_window(
     ref_series: pd.Series,
@@ -274,22 +287,22 @@ def run_drift_univariate(
 #  Máscara Variables ON/OFF en extremos
 # ============================================================
 def mask_plateau_extreme(
-    series: pd.Series, # Serie Original
-    abs_eps: float = 0.5, # Tolerancia mínima absoluta alrededor del extremo
-    rel_eps: float = 0.01, # Tolerancia relativa (fracción del rango)
-    min_share: float = 0.05, # Fracción mínima de puntos en el extremo para activar la lógica
-    low_quantile: float = 0.02, # Cuantil usado para cortar la “cola baja” cuando hay meseta en el mínimo
-    high_quantile: float = 0.98, # Cuantil usado para cortar la “cola alta” cuando hay meseta en el máximo
+    series: pd.Series,       # Serie original
+    abs_eps: float,          # Tolerancia mínima absoluta alrededor del extremo
+    rel_eps: float,          # Tolerancia relativa (fracción del rango)
+    min_share: float,        # Fracción mínima de puntos en el extremo para activar la lógica
+    low_quantile: float,     # Cuantil para cortar la “cola baja” (meseta mínima)
+    high_quantile: float,    # Cuantil para cortar la “cola alta” (meseta máxima)
 ) -> pd.Series:
     """
     Detecta una meseta dominante en el mínimo o máximo y elimina *toda*
     la franja cercana a ese extremo, devolviendo una serie con NaN en
     esos puntos (el índice se mantiene igual).
 
-    Pensado para variables que presentan periodos de inactividad con largos tramos pegados al mínimo
-    o máximo, donde solo interesa comparar el comportamiento "en operación".
+    Pensado para variables que presentan periodos de inactividad con largos
+    tramos pegados al mínimo o máximo, donde solo interesa comparar el
+    comportamiento "en operación".
     """
-
     s = series.dropna()
     if s.empty:
         return series
@@ -317,7 +330,6 @@ def mask_plateau_extreme(
         resto = s[~near_min]
         if resto.empty:
             return series
-        # Umbral entre la meseta baja y el resto de la distribución
         cutoff = resto.quantile(low_quantile)
         mask = s >= cutoff
     else:
@@ -328,8 +340,8 @@ def mask_plateau_extreme(
         cutoff = resto.quantile(high_quantile)
         mask = s <= cutoff
 
-    # Misma serie pero con NaN en la región detectada como meseta extrema
     return series.where(mask)
+
 
 # ============================================================
 #  Revisión Automática Variables Ciclicas
@@ -548,6 +560,7 @@ class DriftPipeline:
         self._config = self._load_config()
         global_cfg: Dict[str, Any] = self._config.get("global", {})
         seasonal_defaults: Dict[str, Any] = self._config.get("seasonal_defaults", {})
+        plateau_defaults: Dict[str, Any] = self._config.get("plateau_defaults", {})
 
         print(f"Leyendo datos desde: {self.input_csv}")
         df_raw = pd.read_csv(self.input_csv)
@@ -586,12 +599,19 @@ class DriftPipeline:
             print(f"\nProcesando variable: {var}")
             series = df_raw[var].dropna()
 
-            # ---------- 1) Plateau ----------
+            # Plateau (definidas SOLO por CLI) 
             if var in self.plateau_vars:
+                # Tomar parámetros SOLO desde plateau_defaults del JSON
+                plateau_params = {}
+                for key in ("abs_eps", "rel_eps", "min_share", "low_quantile", "high_quantile"):
+                    if key in plateau_defaults:
+                        plateau_params[key] = plateau_defaults[key]
+
                 before = series.notna().sum()
-                series = mask_plateau_extreme(series)
+                series = mask_plateau_extreme(series, **plateau_params)
                 after = series.notna().sum()
                 removed = before - after
+
                 if removed > 0:
                     print(
                         f"  → Mask plateau aplicada a {var}: "
@@ -600,24 +620,21 @@ class DriftPipeline:
                 else:
                     print("  → Mask plateau sin cambios.")
 
-            # ---------- 2) Config por variable ----------
+            # Config por variable 
             cfg = self._build_cfg_for_var(var)
 
-            # ---------- 3) Variables Cíclicas (definidas SOLO por CLI) ----------
+            # Variables Cíclicas (definidas SOLO por CLI)
             if var in self.cyclical_vars:
                 # Si la estrategia no es seasonal, la forzamos
                 if cfg.get("strategy", "").lower() != "seasonal":
                     print(f"  → {var} marcada como cíclica; forzando strategy='seasonal'.")
                     cfg["strategy"] = "seasonal"
-                    for k, v in seasonal_defaults.items():
-                        cfg.setdefault(k, v)
 
-                # Defaults estacionales si faltan
-                cfg.setdefault("cycle_hours", 24.0)
-                cfg.setdefault("cycles_back", 5)   # por ejemplo 3–7
-                cfg.setdefault("band_frac", 0.10)  # ya no se usa con ref_seasonal_cycles
+                # Asegurar parámetros estacionales desde seasonal_defaults (JSON)
+                for k, v in seasonal_defaults.items():
+                    cfg.setdefault(k, v)
 
-                # 🔴 Clave: hacer coincidir ventana con el ciclo
+                # Hacer coincidir ventana con el ciclo (para comparar ciclos completos)
                 expected_window = f"{int(cfg['cycle_hours'])}h"
                 if cfg.get("window") != expected_window:
                     print(
@@ -632,6 +649,7 @@ class DriftPipeline:
                     f"cycles_back={cfg['cycles_back']}, "
                     f"window={cfg['window']}"
                 )
+
 
             # Guardar diff vs global (no incluimos seasonal_defaults aquí)
             diff_cfg = {
@@ -669,7 +687,7 @@ class DriftPipeline:
             "seasonal_defaults": seasonal_defaults,
             "variables_overrides": effective_var_cfg,
             "variables_processed": variables,
-            "plateau_vars": sorted(self.plateau_vars),
+            "plateau_vars": sorted(self.plateau_vars),  # ← viene solo de CLI
             "cyclical_vars": sorted(self.cyclical_vars),  # ← viene solo de CLI
         }
 
