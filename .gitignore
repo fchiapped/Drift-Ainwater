@@ -2,3 +2,6 @@ output/
 config/
 __pycache__/
 *.pyc
+output_drift/
+data/
+test.ipynb
