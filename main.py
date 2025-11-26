@@ -3,22 +3,23 @@ Módulo principal para ejecutar el pipeline de drift univariado.
 
 Este archivo define una interfaz de línea de comandos (CLI) que permite:
 
-- Seleccionar el CSV de entrada (posicional):
-    python main.py data/planta.csv
+Argumento posicional:
+    - input_csv: ruta al CSV con 'date_time' + variables numéricas.
 
-- (Opcional) Seleccionar un directorio raíz para los resultados:
-    --output_dir output
+Argumentos opcionales:
+    - --output_dir      : Directorio raíz donde se guardarán los resultados.
+    - --config          : Archivo JSON con parámetros globales (método, estrategia, ventanas...).
+    - --columns         : Lista de variables a procesar (si no se entrega, se procesan todas).
+    - --plateau_vars    : Variables a las que se aplicará la máscara para eliminar mesetas extremas.
+    - --cyclical_vars   : Variables marcadas como cíclicas (p.ej. ciclos diarios); 
+                          fuerzan automáticamente strategy='seasonal'.
 
-- (Opcional) Entregar un archivo JSON de configuración generado por
-  `generar_config_drift.py`:
-    --config config/config_drift.json
-
-- (Opcional) Procesar solo columnas específicas:
-    --columns var_1 var_2 ...
-
-- (Opcional) Aplicar la máscara de mesetas extremas a ciertas variables:
-    --plateau_vars "Nivel Ecualizador 1 (Tk 30m3)"
+Notas:
+    • Los umbrales viven en drift_thresholds.py.
+    • Las configuraciones operativas se controlan vía config_drift.json.
+    • plateau_vars y cyclical_vars se definen EXCLUSIVAMENTE desde CLI
 """
+
 
 from __future__ import annotations
 
@@ -70,58 +71,70 @@ def build_parser() -> argparse.ArgumentParser:
         description="Ejecuta el pipeline de detección de drift univariado."
     )
 
-    # Argumento posicional: ruta al CSV
+    # ---------------------------------------------------------------
+    # Argumento posicional obligatorio
+    # ---------------------------------------------------------------
     parser.add_argument(
         "input_csv",
         help="Ruta al CSV de entrada con columna 'date_time' y variables numéricas.",
     )
 
+    # ---------------------------------------------------------------
+    # Argumentos opcionales
+    # ---------------------------------------------------------------
+
+    # Directorio de salida
     parser.add_argument(
         "--output_dir",
         default="output",
-        help="Directorio raíz donde se generarán los resultados. "
-             "Por defecto: ./output",
+        help="Directorio raíz donde se guardarán los resultados. (default: ./output)",
     )
 
+    # Archivo de configuración (JSON)
     parser.add_argument(
         "--config",
         type=str,
         default=None,
-        help="Ruta a archivo JSON de configuración (opcional).",
+        help="Ruta al archivo JSON de configuración (opcional).",
     )
 
+    # Subconjunto de variables a procesar
     parser.add_argument(
         "--columns",
         type=str,
         nargs="+",
         default=None,
-        help="Lista opcional de columnas numéricas a procesar. "
-             "Si no se especifica, se procesan todas.",
+        help="Procesar solo estas columnas numéricas (opcional).",
     )
 
+    # Variables con mesetas extremas
     parser.add_argument(
         "--plateau_vars",
         type=str,
         nargs="+",
         default=None,
         help=(
-            "Lista de variables a las que se les eliminarán mesetas en valores "
-            "extremos (por ejemplo, variables ON/OFF o con largos tramos en cero)."
+            "Variables a las que se aplicará la máscara de mesetas extremas "
+            "(útil para ON/OFF o largos tramos en cero)."
         ),
     )
 
+    # Variables cíclicas
     parser.add_argument(
         "--cyclical_vars",
         type=str,
         nargs="+",
         default=None,
         help=(
-            "Lista de variables cíclicas (p.ej. caudales con ciclo diario). "
-            "Para estas variables se recomienda usar estrategia 'seasonal' "
-            "con parámetros de ciclo en config_drift.json."
+            "Variables cíclicas (p.ej., caudales con ciclos diarios). "
+            "Fuerza strategy='seasonal' y ajusta automáticamente los parámetros "
+            "para ciclos completos."
         ),
     )
+
     return parser
+
+
 # ============================================================
 #  Ejecución principal
 # ============================================================

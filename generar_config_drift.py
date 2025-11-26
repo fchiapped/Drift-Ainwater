@@ -2,18 +2,34 @@
 Generador de archivo de configuración para el detector de drift univariado.
 
 Este módulo crea un archivo JSON que define los parámetros operativos del
-pipeline:
+pipeline (pero NO decide umbrales ni qué variables son cíclicas).
 
-- Método estadístico global (psi, ks o wasserstein)
-- Estrategia global de referencia (decay, golden, seasonal)
-- Tamaño de ventana
-- Mínimo de puntos por ventana
-- Parámetros por defecto para estrategias estacionales (seasonal_defaults)
+Estructura principal del JSON:
+    - global:
+        • method    : métrica global ("psi", "ks" o "wasserstein").
+        • strategy  : estrategia global ("decay", "golden" o "seasonal").
+        • window    : tamaño de ventana (ej.: "12h", "24h").
+        • min_points: mínimo de puntos por ventana.
 
-NOTA:
-- Qué variables son cíclicas NO se define aquí, sino vía CLI en main.py
-  usando --cyclical_vars.
+    - seasonal_defaults:
+        • cycle_hours : ciclo base en horas (típicamente 24.0).
+        • cycles_back : cuántos ciclos hacia atrás usar como referencia.
+        • band_frac   : ancho relativo de banda de fase (reservado / avanzado).
+
+    - plateau_defaults:
+        • abs_eps, rel_eps, min_share, low_quantile, high_quantile
+          Parámetros por defecto para la máscara de mesetas extremas.
+
+    - variables:
+        • Espacio para overrides por variable (normalmente vacío).
+          Permite cambiar método/estrategia/ventana para variables específicas.
+
+Importante:
+    • Los UMBRALES se configuran en drift_thresholds.py (no en este JSON).
+    • Qué variables son cíclicas o tienen mesetas se define solo vía CLI en main.py
+      con --cyclical_vars y --plateau_vars, respectivamente.
 """
+
 
 import argparse
 import json
@@ -40,7 +56,6 @@ DEFAULT_CONFIG = {
     },
 
     # Defaults globales para la máscara de mesetas extremas (plateau)
-    # Defaults globales para la máscara de mesetas extremas (plateau)
     "plateau_defaults": {
         "abs_eps": 0.5, # Tolerancia mínima absoluta alrededor del extremo
         "rel_eps": 0.01, # Tolerancia relativa (fracción del rango)
@@ -63,9 +78,57 @@ def main() -> None:
     """
     Genera un archivo JSON de configuración para el pipeline de drift.
 
-    Si el usuario entrega parámetros por CLI (por ejemplo, --window "24h"),
-    estos reemplazan los valores del bloque global o seasonal_defaults.
-    """
+    Uso típico:
+        python generar_config_drift.py \
+            --output config/config_drift.json \
+            --method wasserstein \
+            --strategy decay \
+            --window "12h" \
+            --min-points 60 \
+            --cycle-hours 24 \
+            --cycles-back 10 \
+            --plateau-abs-eps 0.5
+
+    Parámetros disponibles (todos opcionales):
+
+      • --output <path>
+            Ruta del archivo JSON a generar.
+            (default: config/config_drift.json)
+
+      • --method {psi, ks, wasserstein}
+            Métrica global para detección de drift.
+
+      • --strategy {decay, golden, seasonal}
+            Estrategia global de referencia.
+
+      • --window <str>
+            Tamaño global de ventana (ej.: "12h", "24h").
+
+      • --min-points <int>
+            Mínimo de puntos por ventana para evaluar drift.
+
+      • Parámetros estacionales (solo relevantes si se usa "seasonal"):
+            --cycle-hours <float>
+            --cycles-back <int>
+            --band-frac <float>
+
+      • Parámetros de la máscara de mesetas extremas:
+            --plateau-abs-eps <float>
+            --plateau-rel-eps <float>
+            --plateau-min-share <float>
+            --plateau-low-quantile <float>
+            --plateau-high-quantile <float>
+
+
+    Los parámetros entregados por CLI (si se entregan) sobre-escriben los
+    valores del bloque "global", "seasonal_defaults" o "plateau_defaults"
+    
+    Este script:
+        - SOLO genera el JSON operativo para el pipeline.
+        - NO define umbrales (ver drift_thresholds.py).
+        - NO define qué variables son cíclicas ni cuáles usan máscara plateau;
+          eso se especifica únicamente desde la CLI de main.py.
+    """    
     parser = argparse.ArgumentParser(
         description=(
             "Genera un archivo de configuración para el detector de drift "

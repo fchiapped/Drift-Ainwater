@@ -342,39 +342,6 @@ def mask_plateau_extreme(
 
     return series.where(mask)
 
-
-# ============================================================
-#  Revisión Automática Variables Ciclicas
-# ============================================================
-
-def detect_cycle_hours_fast(index: pd.DatetimeIndex) -> float:
-    """
-    Detecta ciclo dominante usando histogramas en 'hour_of_day'.
-    Funciona muy bien para ciclos diarios y ruidosos.
-    """
-
-    # Convertir timestamps a hora decimal
-    hour_of_day = index.hour + index.minute / 60.0
-
-    # Histograma fino de 48 bins (media hora)
-    hist, bin_edges = np.histogram(hour_of_day, bins=48)
-
-    # FFT del histograma — detecta periodicidad
-    fft_vals = np.abs(np.fft.rfft(hist))
-
-    # Ignorar el componente DC (freq=0)
-    fft_vals[0] = 0
-
-    # Frecuencia dominante
-    freq_idx = np.argmax(fft_vals)
-
-    # Convertir frecuencia FFT → periodo en horas
-    num_bins = len(hist)
-    period_bins = num_bins / freq_idx if freq_idx != 0 else num_bins
-
-    period_hours = 24 * (period_bins / num_bins)
-
-    return float(round(period_hours, 2))
 # ============================================================
 #  Clase principal de pipeline
 # ============================================================

@@ -27,6 +27,17 @@ import pandas as pd
 @dataclass
 # Configuración global de umbrales para el detector de drift
 class DriftThresholdConfig:
+    """
+    Configuración global de umbrales para el detector de drift.
+
+    Atributos:
+        psi               : Umbral fijo para la métrica PSI.
+        ks                : Umbral fijo para la métrica KS.
+        wasserstein_factor:
+            Factor multiplicativo que se aplica al std histórico de la
+            serie de referencia para construir el umbral dinámico de
+            Wasserstein.
+    """
     psi: float = 0.30
     ks: float = 0.20
     wasserstein_factor: float = 0.60
@@ -37,6 +48,21 @@ def effective_threshold(
     ref_series: pd.Series,
     cfg: DriftThresholdConfig,
 ) -> float:
+    """
+    Determina el umbral efectivo a usar según la métrica y la serie de referencia.
+
+    Comportamiento:
+        - Para "psi" y "ks":
+            Usa directamente los valores fijos definidos en DriftThresholdConfig.
+        - Para "wasserstein":
+            Calcula el umbral como:
+                threshold = wasserstein_factor * std(ref_series)
+            con dos casos de fallback:
+                • Si la serie está vacía → retorna 0.10.
+                • Si la serie es casi constante (std muy pequeña o no finita) → retorna 0.10.
+
+    Si el método no es reconocido, usa el umbral de PSI como valor por defecto.
+    """
 
     method = str(method).lower().strip()
 

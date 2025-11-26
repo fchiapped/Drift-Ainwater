@@ -1,16 +1,22 @@
 """
 Módulo de funciones para detección de drift univariado.
 
+Responsabilidades principales:
 1) Estrategias de referencia (baseline)
-   - ref_decay_prefix_mass : decaimiento exponencial en el tiempo
-   - ref_seasonal          : mismo día de semana + misma hora
-   - ref_golden            : ventanas históricas más estables
+   - ref_decay_prefix_mass : referencia con decaimiento exponencial en el tiempo.
+   - ref_seasonal_cycles   : referencia estacional basada en ciclos completos.
+   - ref_golden            : referencia a partir de ventanas históricas estables.
 
 2) Métodos estadísticos (drift univariado)
-   - psi_numeric           : Population Stability Index (PSI)
-   - ks_numeric            : Kolmogorov–Smirnov (KS)
-   - wasserstein_numeric   : Distancia de Wasserstein
-   - score_numeric_series  : wrapper para elegir el método
+   - psi_numeric           : Population Stability Index (PSI).
+   - ks_numeric            : Kolmogorov–Smirnov (KS).
+   - wasserstein_numeric   : Distancia de Wasserstein.
+   - score_numeric_series  : wrapper unificado para elegir la métrica.
+
+Notas:
+    • Este módulo NO decide umbrales (eso se hace en drift_thresholds.py).
+    • Este módulo NO se preocupa de ventanas ni episodios (eso se hace en pipeline_drift.py).
+    • Todas las funciones asumen series numéricas ya alineadas y limpias a nivel de índice.
 """
 
 from __future__ import annotations
